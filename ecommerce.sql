@@ -239,6 +239,137 @@ GROUP BY CustomerID
 HAVING num_purchases_cancelled > 10
 ORDER BY num_purchases_cancelled DESC;
 
+-- Views for data visualization 
+
+CREATE TABLE sales_by_date_permanent AS 
+SELECT * FROM sales_BY_date;
+
+-- Sales by month 
+CREATE VIEW sales_by_month AS 
+SELECT Year,Month_Name,SUM(Quantity * UnitPrice) AS Net_sales_per_month,AVG(Quantity * UnitPrice) AS average_sales,
+RANK()OVER(ORDER BY SUM(Quantity * UnitPrice) DESC) AS sales_ranking
+FROM sales_by_date_permanent
+GROUP BY Year,Month,Month_name
+ORDER BY Year,Month;
+
+-- Sales by weekday
+CREATE VIEW sales_by_weekday AS 
+SELECT Weekday,SUM(Quantity * UnitPrice) AS Net_sales_per_week,AVG(Quantity * UnitPrice) AS average_sales,
+RANK()OVER(ORDER BY SUM(Quantity * UnitPrice) DESC) AS sales_ranking
+FROM sales_by_date_permanent
+GROUP BY Weekday
+ORDER BY FIELD(Weekday,'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday','Saturday');
+
+-- top_products
+CREATE VIEW top_ordered_products AS
+WITH product_popularity AS
+(
+SELECT StockCode, Description, SUM(Quantity) AS total_sold,
+RANK() OVER (ORDER BY SUM(Quantity) DESC) AS most_sold
+FROM online_retail
+WHERE InvoiceNo NOT LIKE '%C%'
+AND Quantity <= 100 
+GROUP BY StockCode,Description
+)
+SELECT *
+FROM product_popularity
+WHERE most_sold <= 20;
+
+-- top profitable products
+CREATE VIEW top_profitable_products AS
+WITH product_sales AS
+(
+SELECT StockCode,Description,SUM(Quantity*UnitPrice) AS net_sales,
+RANK()OVER(ORDER BY SUM(Quantity*UnitPrice) DESC) AS most_profitable
+FROM online_retail
+WHERE InvoiceNo NOT LIKE '%C%'
+GROUP BY StockCode,Description
+)
+SELECT *
+FROM product_sales 
+WHERE most_profitable <= 20;
+
+-- regional sales
+CREATE VIEW regional_sales AS 
+SELECT Country,SUM(Quantity*UnitPrice)  AS Net_sales,
+RANK()OVER(ORDER BY SUM(Quantity*UnitPrice) DESC) as Country_ranking
+FROM online_retail
+WHERE InvoiceNo NOT LIKE '%C%'
+GROUP BY Country;
+
+-- highest average order
+CREATE VIEW countries_highest_avg_order_value AS
+SELECT Country, SUM(Quantity * UnitPrice) / COUNT(DISTINCT InvoiceNo) AS Avg_Order_Value
+FROM online_retail
+WHERE InvoiceNo NOT LIKE '%C%'
+GROUP BY Country
+ORDER BY Avg_Order_Value DESC;
+
+
+-- Popular products 
+CREATE VIEW popular_products_per_country AS
+WITH popular_product AS 
+(
+SELECT Country,Description,COUNT(Description) AS times_purchased,
+RANK()OVER(PARTITION BY Country ORDER BY COUNT(Description) DESC) as rank_number
+FROM online_retail
+WHERE InvoiceNo NOT LIKE '%C%'
+GROUP BY Country,Description
+)
+SELECT Country,Description,times_purchased
+FROM popular_product
+WHERE rank_number = 1
+AND times_purchased > 20    
+ORDER BY times_purchased DESC;
+
+
+-- losses due to cancellations
+-- Countries 
+CREATE VIEW net_loss_country AS 
+SELECT Country,ABS(SUM(Quantity * UnitPrice)) AS net_loss_per_region, COUNT(DISTINCT InvoiceNo) AS number_transactions_cancelled
+FROM online_retail
+WHERE InvoiceNo LIKE '%C%'
+GROUP BY Country
+ORDER BY ABS(SUM(Quantity * UnitPrice)) DESC;
+
+-- Months with most cancellations
+CREATE VIEW net_loss_month AS 
+SELECT Year(InvoiceDate) AS Year,MONTHNAME(InvoiceDate) AS Month,ABS(SUM(Quantity * UnitPrice)) AS net_loss_per_month,
+ COUNT(DISTINCT InvoiceNo) AS number_transactions_cancelled
+FROM online_retail
+WHERE InvoiceNo LIKE '%C%'
+GROUP BY Year(InvoiceDate),MONTHNAME(InvoiceDate)
+ORDER BY ABS(SUM(Quantity * UnitPrice)) DESC;
+
+
+-- Products with most cancellations 
+CREATE VIEW net_loss_product AS 
+SELECT Description,ABS(SUM(Quantity * UnitPrice)) AS net_loss, COUNT(DISTINCT InvoiceNo) AS number_transactions_cancelled
+FROM online_retail
+WHERE InvoiceNo LIKE '%C%'
+GROUP BY Description
+HAVING net_loss > 6000
+ORDER BY ABS(SUM(Quantity * UnitPrice)) DESC;
+
+-- customer analysis
+-- Customers with most purchases
+CREATE VIEW most_frequent_customers AS 
+SELECT CustomerID, COUNT(DISTINCT InvoiceNo) AS num_purchases
+FROM online_retail
+WHERE InvoiceNo NOT LIKE '%C%'
+GROUP BY CustomerID
+HAVING Num_Purchases > 25
+ORDER BY num_purchases DESC;
+
+-- Customers with highest expenditures
+CREATE VIEW customers_highest_expenditure AS 
+SELECT CustomerID, SUM(Quantity*UnitPrice) AS total_spent
+FROM online_retail
+WHERE InvoiceNo NOT LIKE '%C%'
+GROUP BY CustomerID
+HAVING total_spent > 10000
+ORDER BY total_spent DESC;
+
 
 
 
